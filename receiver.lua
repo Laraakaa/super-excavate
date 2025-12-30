@@ -1,12 +1,22 @@
 -- super-excavate dashboard listener
 -- Run this on any ComputerCraft computer with a wireless modem attached.
 -- Displays status broadcasts tagged with "super_excavate".
--- Designed to shine on 51x19 computer screens and scales up for monitors.
+-- Default: text table on the computer screen.
+-- Gold monitor mode: uses the drawing API for a rich, 2x2-optimized display.
+
+local goldDashboard = dofile("gold_dashboard.lua")
 
 local originalTerm = term.current()
 local monitor = peripheral.find("monitor")
+local renderMode = "text"
+local drawingSurface
 
-if monitor then
+if monitor and monitor.isColor and monitor.isColor() then
+  monitor.setTextScale(0.5)
+  term.redirect(monitor)
+  renderMode = "gold_monitor"
+  drawingSurface = goldDashboard.makeSurface(monitor, { paintutils = paintutils })
+elseif monitor then
   monitor.setTextScale(0.5)
   term.redirect(monitor)
 end
@@ -209,8 +219,34 @@ local function drawRows(entries, startRow)
   end
 end
 
+local function drawGold(entries)
+  if not drawingSurface then return draw() end
+  local active, completed = 0, 0
+  for _, entry in ipairs(entries) do
+    if entry.state == "done" then
+      completed = completed + 1
+    else
+      active = active + 1
+    end
+  end
+
+  goldDashboard.render(drawingSurface, entries, {
+    summary = {
+      total = #entries,
+      active = active,
+      completed = completed,
+    },
+    updatedAgo = (os.epoch("utc") - lastHeaderTick) / 1000,
+  })
+  lastHeaderTick = os.epoch("utc")
+end
+
 local function draw()
   width, height = term.getSize()
+  if renderMode == "gold_monitor" then
+    drawGold(sortedEntries())
+    return
+  end
   if colorsAvailable then
     term.setBackgroundColor(colors.black)
     term.setTextColor(colors.white)

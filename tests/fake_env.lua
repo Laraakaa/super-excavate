@@ -162,4 +162,81 @@ function FakeEnv.new(config)
   return env
 end
 
+-- Drawing/monitor simulators for dashboard tests
+function FakeEnv.makeDrawingSurface(width, height)
+  local ops = {}
+  local surface = {
+    getSize = function()
+      return width, height
+    end,
+    clear = function(color)
+      table.insert(ops, { op = "clear", color = color })
+    end,
+    fillRect = function(x1, y1, x2, y2, color)
+      table.insert(ops, { op = "fill", x1 = x1, y1 = y1, x2 = x2, y2 = y2, color = color })
+    end,
+    text = function(x, y, text, fg, bg)
+      table.insert(ops, { op = "text", x = x, y = y, text = text, fg = fg, bg = bg })
+    end,
+    bar = function(x1, y1, x2, y2, pct, fg, bg)
+      table.insert(ops, {
+        op = "bar",
+        x1 = x1,
+        y1 = y1,
+        x2 = x2,
+        y2 = y2,
+        progress = pct,
+        fg = fg,
+        bg = bg,
+      })
+    end,
+  }
+  return surface, ops
+end
+
+function FakeEnv.makeMonitorAndPaintutils(width, height, ops)
+  ops = ops or {}
+  local bg, fg = nil, nil
+  local cursor = { x = 1, y = 1 }
+  local monitor = {
+    getSize = function()
+      return width, height
+    end,
+    getBackgroundColor = function()
+      return bg
+    end,
+    setBackgroundColor = function(color)
+      bg = color
+      table.insert(ops, { op = "set_bg", color = color })
+    end,
+    getTextColor = function()
+      return fg
+    end,
+    setTextColor = function(color)
+      fg = color
+      table.insert(ops, { op = "set_fg", color = color })
+    end,
+    clear = function()
+      table.insert(ops, { op = "clear", bg = bg, fg = fg })
+    end,
+    setCursorPos = function(x, y)
+      cursor.x = x
+      cursor.y = y
+      table.insert(ops, { op = "cursor", x = x, y = y })
+    end,
+    write = function(text)
+      table.insert(ops, { op = "write", x = cursor.x, y = cursor.y, text = text, bg = bg, fg = fg })
+      table.insert(ops, { op = "text", x = cursor.x, y = cursor.y, text = text, bg = bg, fg = fg })
+    end,
+  }
+
+  local paint = {
+    drawFilledBox = function(x1, y1, x2, y2, color)
+      table.insert(ops, { op = "filled_box", x1 = x1, y1 = y1, x2 = x2, y2 = y2, color = color })
+    end,
+  }
+
+  return monitor, paint, ops
+end
+
 return FakeEnv

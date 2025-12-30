@@ -7,7 +7,7 @@ Wireless-enabled ComputerCraft quarry helper for All The Mods 10 / Minecraft 1.2
   - Mines a rectangular prism (length × width × optional depth).
   - Auto-unloads into a chest placed directly above the starting position.
   - Broadcasts wireless status (progress/fuel/errors) over `rednet` with the `super_excavate` protocol.
-- `receiver.lua`: Dashboard that listens for broadcasts and prints a live table of turtles.
+- `receiver.lua`: Dashboard that listens for broadcasts and prints a live table of turtles. On gold/advanced monitors it switches to a drawing-based, 2×2-optimized view.
 
 ## Turtle setup (`excavate.lua`)
 1. Place a **chest directly above** the turtle start block (e.g., turtle on the floor, chest one block higher).
@@ -49,6 +49,7 @@ receiver
    - Progress %
    - Fuel remaining
    - Age of last update (seconds)
+4. Optional: Place the computer next to an **advanced/gold monitor**, assemble it as a 2×2 (or larger), and run `receiver` on the computer. The dashboard will switch to a colorful drawing-mode UI tuned for a 2×2 gold monitor layout while still working on the computer’s own screen or basic monitors.
 
 You can run multiple dashboards; they all listen on the `super_excavate` protocol.
 
