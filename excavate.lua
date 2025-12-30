@@ -155,6 +155,17 @@ local lastBroadcastState = nil
 local lastBroadcastTime = 0
 local progressStep = math.max(math.floor(totalBlocks / 40), 1) -- ~2.5% updates
 
+local function headingName(dir)
+  if dir == 0 then return "east" end
+  if dir == 1 then return "south" end
+  if dir == 2 then return "west" end
+  return "north"
+end
+
+local function distanceFromHome()
+  return math.abs(pos.x) + math.abs(pos.y) + math.abs(pos.z)
+end
+
 local function broadcast(state, detail)
   if not hasModem then return end
   lastBroadcastState = state
@@ -169,6 +180,9 @@ local function broadcast(state, detail)
     total = totalBlocks,
     fuel = turtle.getFuelLevel(),
     position = { x = pos.x, y = pos.y, z = pos.z },
+    heading = headingName(facing),
+    distance_from_home = distanceFromHome(),
+    job = { length = length, width = width, depth = depth },
     timestamp = lastBroadcastTime,
   }
   rednet.broadcast(payload, "super_excavate")
