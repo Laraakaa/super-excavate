@@ -3,13 +3,14 @@
 Wireless-enabled ComputerCraft quarry helper for All The Mods 10 / Minecraft 1.21 turtles.
 
 ## What's included
-- `excavate.lua`: Turtle quarry program that:
+- `sexcavate.lua`: Primary launcher that supports OTA updates, auto-start, and resume from saves.
+- `excavate_core.lua`: Turtle quarry core that:
   - Mines a rectangular prism (length × width × optional depth).
   - Auto-unloads into a chest placed directly above the starting position.
   - Broadcasts wireless status (progress/fuel/errors) over `rednet` with the `super_excavate` protocol.
 - `receiver.lua`: Dashboard that listens for broadcasts and prints a live table of turtles. On gold/advanced monitors it switches to a drawing-based, 2×2-optimized view.
 
-## Turtle setup (`excavate.lua`)
+## Turtle setup (`sexcavate`)
 1. Place a **chest directly above** the turtle start block (e.g., turtle on the floor, chest one block higher).
 2. Attach a **wireless modem** to any turtle side and right-click it once to activate.
 3. Fuel:
@@ -19,7 +20,7 @@ Wireless-enabled ComputerCraft quarry helper for All The Mods 10 / Minecraft 1.2
 
 ### Run it
 ```
-excavate <length> <width> [depth]
+sexcavate <length> <width> [depth]
 ```
 - `length`: Blocks forward.
 - `width`: Blocks to the right.
@@ -27,7 +28,7 @@ excavate <length> <width> [depth]
 
 Example (10×6 area, 3 layers deep):
 ```
-excavate 10 6 3
+sexcavate 10 6 3
 ```
 
 ### Behavior notes
@@ -36,6 +37,27 @@ excavate 10 6 3
 - **Fuel check**: Stops immediately with an error if it cannot reach the estimated fuel budget.
 - **Obstacles/mobs**: The turtle digs/attacks forward/up/down until it can move. Keep mobs cleared if possible.
 - **Reach/safety**: Turtle moves one block at a time. Ensure the quarry fits within loaded chunks; keep dimensions within chunk boundaries for unattended runs when chunkloading isn't available.
+
+### Auto-resume & startup
+- Jobs are persisted to `.sexcavate_state` so a reboot or crash can resume in-place.
+- To resume manually:
+  ```
+  sexcavate resume
+  ```
+- To auto-resume on boot (and optionally auto-update), install the startup hook:
+  ```
+  sexcavate install-startup
+  ```
+  On reboot the turtle will call `sexcavate auto`, download updates (if HTTP is enabled), and continue the saved job if one exists.
+
+### Over-the-air updates
+- OTA pulls files directly from the public GitHub repo listed in `ota_manifest.lua` (update `repo`/`branch` there if you fork).
+- With HTTP enabled in ComputerCraft:
+  ```
+  sexcavate update               # uses repo from ota_manifest.lua
+  sexcavate update --repo you/super-excavate --branch main
+  ```
+- The updater refreshes core files: `sexcavate.lua`, `excavate.lua`, `excavate_core.lua`, `receiver.lua`, `gold_dashboard.lua`, `ota.lua`, `ota_manifest.lua`, `startup.lua`, and `state_store.lua`.
 
 ## Dashboard setup (`receiver.lua`)
 1. Place a ComputerCraft computer with a **wireless modem** on any side; activate the modem.
@@ -56,15 +78,15 @@ You can run multiple dashboards; they all listen on the `super_excavate` protoco
 ## Copying the scripts into Minecraft
 Option A (pastebin/URL): Upload these files somewhere accessible (e.g., `pastebin put`). On the turtle/computer:
 ```
-wget <url-to-excavate.lua> excavate
+wget <url-to-sexcavate.lua> sexcavate
 wget <url-to-receiver.lua> receiver
 ```
 Option B (disk/drive): Copy the files into a ComputerCraft disk directory and insert the disk into the turtle/computer, then copy:
 ```
-cp disk/excavate.lua excavate
+cp disk/sexcavate.lua sexcavate
 cp disk/receiver.lua receiver
 ```
-Make the files executable by running them directly (`excavate ...`, `receiver`).
+Make the files executable by running them directly (`sexcavate ...`, `receiver`).
 
 ## Tips and limitations
 - Keep quarry dimensions reasonable to avoid chunk borders if you do not use chunk loaders.

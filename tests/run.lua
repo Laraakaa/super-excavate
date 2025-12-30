@@ -1,6 +1,8 @@
 local core = dofile("excavate_core.lua")
 local FakeEnv = dofile("tests/fake_env.lua")
 local GoldDashboard = dofile("gold_dashboard.lua")
+local StateStore = dofile("state_store.lua")
+local OTA = dofile("ota.lua")
 
 local function assertEquals(actual, expected, msg)
   if actual ~= expected then
@@ -109,6 +111,58 @@ test("gold dashboard renders progress bars and headers", function()
 
   assertTrue(sawBar or sawSurfaceBar, "expected a progress bar to be drawn")
   assertTrue(sawHeader, "expected header text to be rendered")
+end)
+
+test("persists and resumes excavation progress", function()
+  local env = FakeEnv.new({ modemSide = "left" })
+  local store = StateStore.new("state", env)
+  local ok = pcall(function()
+    core.run(env, { 3, 2, 1 }, {
+      state = store,
+      shouldAbort = function(cleared)
+        return cleared >= 4
+      end,
+    })
+  end)
+
+  assertTrue(not ok, "expected abort to simulate interruption")
+  local saved = store.load()
+  assertTrue(saved ~= nil, "state file missing after abort")
+  assertTrue(saved.cleared >= 4, "unexpected cleared count in saved state")
+
+  local result = core.run(env, {}, { state = store, resumeState = saved })
+  assertTrue(result.completed, "resume did not complete")
+  assertEquals(result.cleared, 3 * 2 * 1)
+  if store.exists then
+    assertTrue(not store.exists(), "state file should be cleared on completion")
+  end
+end)
+
+test("ota updater writes files from manifest", function()
+  local manifest = { repo = "demo/repo", branch = "main", files = { "fileA", "fileB" } }
+  local responses = {
+    ["https://raw.githubusercontent.com/demo/repo/main/fileA"] = "hello",
+    ["https://raw.githubusercontent.com/demo/repo/main/fileB"] = "world",
+  }
+  local httpApi = {
+    get = function(url)
+      if not responses[url] then return nil end
+      return {
+        readAll = function() return responses[url] end,
+        close = function() end,
+        getResponseCode = function() return 200 end,
+      }
+    end,
+  }
+
+  local fs = FakeEnv.makeFs()
+  local ok, result = OTA.update(manifest, { fs = fs, http = httpApi })
+  assertTrue(ok, "ota update should succeed")
+  assertEquals(#result, 2, "expected two files written")
+  local readA = fs.open("fileA", "r").readAll()
+  local readB = fs.open("fileB", "r").readAll()
+  assertEquals(readA, "hello")
+  assertEquals(readB, "world")
 end)
 
 local function runAll()

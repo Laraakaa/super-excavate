@@ -2,6 +2,8 @@
 -- and argument list, and runs the excavation routine. Designed so it can be
 -- required by tests or a simulator without immediately executing.
 
+local stateStore = dofile("state_store.lua")
+
 local function defaultPrint(...)
   return print(...)
 end
@@ -36,6 +38,8 @@ local function resolveEnv(env)
     os = envOs,
     sleep = env.sleep or defaultSleep,
     print = env.print or defaultPrint,
+    fs = env.fs or _G.fs,
+    textutils = env.textutils or _G.textutils,
   }
 end
 
@@ -86,32 +90,69 @@ local function makeBroadcaster(env, state)
   return broadcast, maybeBroadcast
 end
 
-local function run(env, args)
+local function run(env, args, opts)
   env = resolveEnv(env)
   args = args or {}
+  opts = opts or {}
 
-  if #args < 2 then
-    env.print("Usage: excavate <length> <width> [depth]")
-    env.print("  length: blocks in the direction the turtle faces")
-    env.print("  width : blocks to the right (turtle will snake rows)")
-    env.print("  depth : layers down to remove (default 1)")
-    return { completed = false, reason = "invalid_args" }
-  end
+  local stateManager = opts.state or (opts.statePath and stateStore.new(opts.statePath, env)) or nil
+  local restored = opts.resumeState
 
   local turtle = env.turtle
+
   local length = tonumber(args[1])
   local width = tonumber(args[2])
   local depth = tonumber(args[3]) or 1
 
+  if restored and restored.job then
+    length = restored.job.length or length
+    width = restored.job.width or width
+    depth = restored.job.depth or depth
+  end
+
   if not length or not width or not depth or length < 1 or width < 1 or depth < 1 then
+    if not restored then
+      env.print("Usage: excavate <length> <width> [depth]")
+      env.print("  length: blocks in the direction the turtle faces")
+      env.print("  width : blocks to the right (turtle will snake rows)")
+      env.print("  depth : layers down to remove (default 1)")
+      return { completed = false, reason = "invalid_args" }
+    end
     error("length, width, and depth must be positive numbers")
   end
 
-  local totalBlocks = length * width * depth
-  local cleared = 0
+  local totalBlocks = (restored and restored.total) or length * width * depth
+  local cleared = (restored and restored.cleared) or 0
 
-  local pos = { x = 0, y = 0, z = 0 }
-  local facing = 0 -- 0 = east, 1 = south, 2 = west, 3 = north
+  local pos = (restored and restored.pos and { x = restored.pos.x or 0, y = restored.pos.y or 0, z = restored.pos.z or 0 }) or { x = 0, y = 0, z = 0 }
+  local facing = (restored and restored.facing) or 0 -- 0 = east, 1 = south, 2 = west, 3 = north
+  local progress = (restored and restored.progress) or {}
+  local currentLayer = progress.layer or 1
+  local currentRow = progress.row or 1
+  local currentCol = progress.col or 1
+  local descended = progress.descended or false
+
+  local function snapshot()
+    return {
+      job = { length = length, width = width, depth = depth },
+      total = totalBlocks,
+      cleared = cleared,
+      pos = { x = pos.x, y = pos.y, z = pos.z },
+      facing = facing,
+      progress = {
+        layer = currentLayer,
+        row = currentRow,
+        col = currentCol,
+        descended = descended,
+      },
+      timestamp = env.os.epoch("utc"),
+    }
+  end
+
+  local function persistState()
+    if not stateManager then return end
+    stateManager.save(snapshot())
+  end
 
   local function dirVector(dir)
     if dir == 0 then return 1, 0 end
@@ -157,11 +198,13 @@ local function run(env, args)
   local function turnRight()
     if turtle.turnRight then turtle.turnRight() end
     facing = (facing + 1) % 4
+    persistState()
   end
 
   local function turnLeft()
     if turtle.turnLeft then turtle.turnLeft() end
     facing = (facing + 3) % 4
+    persistState()
   end
 
   local function face(dir)
@@ -226,10 +269,12 @@ local function run(env, args)
   local function moveAxis(delta, positiveMove, negativeMove)
     while delta > 0 do
       positiveMove()
+      persistState()
       delta = delta - 1
     end
     while delta < 0 do
       negativeMove()
+      persistState()
       delta = delta + 1
     end
   end
@@ -313,18 +358,25 @@ local function run(env, args)
     moveTo(0, 0, 0)
     face(0)
     unloadToChest()
+    persistState()
 
     moveTo(target.x, target.y, target.z)
     face(target.facing)
+    persistState()
   end
 
   local maybeBroadcast = maybeBroadcastProgress or function() end
 
   local function markProgress(count)
     cleared = cleared + count
+    if opts.shouldAbort and opts.shouldAbort(cleared) then
+      persistState()
+      error("aborted by test hook")
+    end
     if maybeBroadcast then
       maybeBroadcast(cleared, totalBlocks, string.format("%.1f%% done", (cleared / totalBlocks) * 100), pos)
     end
+    persistState()
   end
 
   local function checkInventory()
@@ -334,40 +386,57 @@ local function run(env, args)
   end
 
   local function clearLayer()
-    digDown()
-    tryDown()
-    markProgress(1)
-    checkInventory()
+    if not descended then
+      digDown()
+      tryDown()
+      descended = true
+      currentCol = 1
+      currentRow = 1
+      markProgress(1)
+      checkInventory()
+    end
 
-    for row = 1, width do
-      for _ = 1, length - 1 do
+    while currentRow <= width do
+      while currentCol < length do
         digForward()
         tryForward()
+        currentCol = currentCol + 1
         markProgress(1)
         checkInventory()
       end
 
-      if row < width then
-        if row % 2 == 1 then
-          turnRight()
-          digForward()
-          tryForward()
-          markProgress(1)
-          checkInventory()
-          turnRight()
-        else
-          turnLeft()
-          digForward()
-          tryForward()
-          markProgress(1)
-          checkInventory()
-          turnLeft()
-        end
+      if currentRow >= width then
+        break
+      end
+
+      if currentRow % 2 == 1 then
+        turnRight()
+        digForward()
+        tryForward()
+        currentRow = currentRow + 1
+        currentCol = 1
+        markProgress(1)
+        checkInventory()
+        turnRight()
+      else
+        turnLeft()
+        digForward()
+        tryForward()
+        currentRow = currentRow + 1
+        currentCol = 1
+        markProgress(1)
+        checkInventory()
+        turnLeft()
       end
     end
 
     moveTo(0, pos.y, 0)
     face(0)
+    currentLayer = currentLayer + 1
+    currentRow = 1
+    currentCol = 1
+    descended = false
+    persistState()
   end
 
   local requiredFuel = estimateFuelCost()
@@ -376,11 +445,18 @@ local function run(env, args)
     error("Not enough fuel. Need ~" .. requiredFuel .. ". Place fuel in inventory.")
   end
 
-  broadcast(state.buildPayload("ready", string.format("%dx%dx%d", length, width, depth), cleared, pos))
-  unloadToChest()
+  local startDetail = string.format("%dx%dx%d", length, width, depth)
+  if restored then
+    startDetail = string.format("Resuming %dx%dx%d @ %d/%d", length, width, depth, cleared, totalBlocks)
+  end
+  broadcast(state.buildPayload("ready", startDetail, cleared, pos))
+  if not restored then
+    unloadToChest()
+  end
+  persistState()
 
-  for layer = 1, depth do
-    broadcast(state.buildPayload("excavating", string.format("Layer %d/%d", layer, depth), cleared, pos))
+  while currentLayer <= depth do
+    broadcast(state.buildPayload("excavating", string.format("Layer %d/%d", currentLayer, depth), cleared, pos))
     clearLayer()
   end
 
@@ -389,6 +465,7 @@ local function run(env, args)
   unloadToChest()
   broadcast(state.buildPayload("done", "Excavation complete", cleared, pos))
   env.print("Excavation complete")
+  if stateManager then stateManager.clear() end
 
   return {
     completed = true,

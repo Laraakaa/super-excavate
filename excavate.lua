@@ -2,6 +2,9 @@
 -- Arguments: excavate <length> <width> [depth]
 -- Places mined items into a chest directly above the turtle at the start position.
 
-local core = dofile("excavate_core.lua")
+local args = { ... }
+if not (shell and shell.run) then
+  error("This launcher requires the ComputerCraft shell. Run `sexcavate` directly.")
+end
 
-core.run(_G, { ... })
+shell.run("sexcavate", table.unpack(args))

@@ -1,5 +1,92 @@
 local FakeEnv = {}
 
+local function makeSerializer()
+  local function encode(value)
+    if type(value) == "number" or type(value) == "boolean" then
+      return tostring(value)
+    elseif type(value) == "string" then
+      return string.format("%q", value)
+    elseif type(value) == "table" then
+      local parts = {}
+      for k, v in pairs(value) do
+        table.insert(parts, "[" .. encode(k) .. "]=" .. encode(v))
+      end
+      return "{" .. table.concat(parts, ",") .. "}"
+    end
+    return "nil"
+  end
+
+  local function decode(str)
+    local fn = load("return " .. str)
+    if not fn then return nil end
+    local ok, result = pcall(fn)
+    if not ok then return nil end
+    return result
+  end
+
+  return {
+    serialize = encode,
+    unserialize = decode,
+  }
+end
+
+function FakeEnv.makeFs(store)
+  store = store or {}
+  local function open(path, mode)
+    if mode == "r" then
+      if not store[path] then return nil end
+      local closed = false
+      return {
+        readAll = function()
+          if closed then return nil end
+          return store[path]
+        end,
+        close = function()
+          closed = true
+        end,
+      }
+    elseif mode == "w" then
+      local buffer = ""
+      local closed = false
+      return {
+        write = function(text)
+          if closed then return end
+          buffer = buffer .. (text or "")
+        end,
+        writeLine = function(text)
+          if closed then return end
+          buffer = buffer .. (text or "") .. "\n"
+        end,
+        close = function()
+          if closed then return end
+          store[path] = buffer
+          closed = true
+        end,
+      }
+    end
+    return nil
+  end
+
+  return {
+    store = store,
+    exists = function(path)
+      return store[path] ~= nil
+    end,
+    open = open,
+    delete = function(path)
+      store[path] = nil
+    end,
+  }
+end
+
+function FakeEnv.makeTextutils()
+  local serializer = makeSerializer()
+  return {
+    serialize = serializer.serialize,
+    unserialize = serializer.unserialize,
+  }
+end
+
 local function makeTurtle(config)
   config = config or {}
   local fuel = config.fuel or 100000
@@ -118,6 +205,8 @@ function FakeEnv.new(config)
   local clock = 0
   local rednet = config.disableRednet and nil or makeRednet()
   local modemSide = config.modemSide
+  local fsStore = config.fsStore or {}
+  local fs = config.fs or FakeEnv.makeFs(fsStore)
   local env = {
     turtle = makeTurtle(config.turtle or {}),
     rednet = rednet,
@@ -152,6 +241,8 @@ function FakeEnv.new(config)
       clock = clock + (seconds or 0) * 1000
     end,
     print = function() end,
+    fs = fs,
+    textutils = config.textutils or FakeEnv.makeTextutils(),
   }
 
   env.modemSide = modemSide
