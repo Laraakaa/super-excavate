@@ -1,5 +1,6 @@
 local core = dofile("excavate_core.lua")
 local FakeEnv = dofile("tests/fake_env.lua")
+local GoldDashboard = dofile("gold_dashboard.lua")
 
 local function assertEquals(actual, expected, msg)
   if actual ~= expected then
@@ -67,6 +68,47 @@ test("fails fast when fuel is insufficient", function()
 
   assertTrue(not ok, "expected failure due to fuel")
   assertTrue(tostring(err):find("Not enough fuel") ~= nil, "unexpected error: " .. tostring(err))
+end)
+
+test("gold dashboard lays out two columns for 2x2 monitors", function()
+  local layout = GoldDashboard.layoutFor(64, 36)
+  assertEquals(layout.columns, 2, "expected two columns")
+  assertTrue(#layout.slots >= 4, "expected to fit at least four slots")
+  assertTrue(layout.slots[2].x1 > layout.slots[1].x1, "second slot should be to the right of first")
+end)
+
+test("gold dashboard renders progress bars and headers", function()
+  local monitor, paintutils, ops = FakeEnv.makeMonitorAndPaintutils(64, 36)
+  local surface = GoldDashboard.makeSurface(monitor, { paintutils = paintutils })
+
+  GoldDashboard.render(surface, {
+    {
+      label = "Miner-1",
+      state = "excavating",
+      progress = 0.5,
+      detail = "Layer 1/2",
+      fuel = 250,
+    },
+  }, {
+    summary = { total = 1, active = 1, completed = 0 },
+    updatedAgo = 3,
+  })
+
+  local sawBar, sawHeader, sawSurfaceBar = false, false, false
+  for _, op in ipairs(ops) do
+    if op.op == "bar" and op.progress == 0.5 then
+      sawBar = true
+    end
+    if op.op == "filled_box" and (op.x2 - op.x1) >= 10 then
+      sawSurfaceBar = true
+    end
+    if op.op == "text" and tostring(op.text or ""):find("Gold Dashboard") then
+      sawHeader = true
+    end
+  end
+
+  assertTrue(sawBar or sawSurfaceBar, "expected a progress bar to be drawn")
+  assertTrue(sawHeader, "expected header text to be rendered")
 end)
 
 local function runAll()
