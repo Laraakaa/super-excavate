@@ -18,10 +18,13 @@ wget https://raw.githubusercontent.com/Laraakaa/super-excavate/main/setup.lua se
 setup --startup
 ```
 
-- By default, it pulls from `super-excavate/super-excavate` on `main`.
-- Use `--repo owner/name` and `--branch branch-name` to point OTA at your fork; `setup` will fetch that repo’s `ota_manifest.lua` first so it automatically follows file additions/removals (including updating itself). Default repo: `Laraakaa/super-excavate` on `main`.
+- By default, it pulls from `Laraakaa/super-excavate` on `main`.
+- Use `--repo owner/name` and `--branch branch-name` to point OTA at your fork; `setup` will fetch that repo’s `ota_manifest.lua` first so it automatically follows file additions/removals (including updating itself).
 - Rerun `setup` any time to update to the latest files; it overwrites the tracked scripts, refreshes `ota_manifest.lua`, and removes stale tracked files.
-- `--startup` installs `startup.lua` so the turtle auto-resumes on reboot.
+- `--startup` installs `startup.lua` for the detected/forced role:
+  - **Turtle (default when the `turtle` API exists):** `startup.lua` runs `sexcavate auto` to resume digs.
+  - **Receiver (default on a regular ComputerCraft PC):** `startup.lua` runs `receiver` on boot.
+- Force a role with `--role turtle` or `--role receiver`.
 
 ## Turtle setup (`sexcavate`)
 1. Place a **chest directly above** the turtle start block (e.g., turtle on the floor, chest one block higher).
@@ -75,18 +78,23 @@ sexcavate 10 6 3
 
 ## Dashboard setup (`receiver.lua`)
 1. Place a ComputerCraft computer with a **wireless modem** on any side; activate the modem.
-2. Copy `receiver.lua` onto the computer and run:
+2. Install/update with the setup script (non-turtle PCs auto-detect as receivers):
+```
+wget https://raw.githubusercontent.com/Laraakaa/super-excavate/main/setup.lua setup
+setup --role receiver --startup
+```
+3. Or copy `receiver.lua` manually and run:
 ```
 receiver
 ```
-3. The screen lists each broadcasting turtle with:
+4. The screen lists each broadcasting turtle with:
    - Computer ID & label
    - Current state
    - Progress %
    - Fuel remaining
    - Age of last update (seconds)
    - Version + git commit (short)
-4. Optional: Place the computer next to an **advanced/gold monitor**, assemble it as a 2×2 (or larger), and run `receiver` on the computer. The dashboard will switch to a colorful drawing-mode UI tuned for a 2×2 gold monitor layout while still working on the computer’s own screen or basic monitors.
+5. Optional: Place the computer next to an **advanced/gold monitor**, assemble it as a 2×2 (or larger), and run `receiver` on the computer. The dashboard will switch to a colorful drawing-mode UI tuned for a 2×2 gold monitor layout while still working on the computer’s own screen or basic monitors.
 
 You can run multiple dashboards; they all listen on the `super_excavate` protocol.
 

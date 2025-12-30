@@ -2,12 +2,13 @@
 -- Download this file directly (e.g., with `wget`) and run `setup` to install or update.
 --
 -- Usage:
---   setup [--repo owner/name] [--branch main] [--startup]
+--   setup [--repo owner/name] [--branch main] [--startup] [--role turtle|receiver]
 --
 -- Flags:
---   --repo owner/name   Override the GitHub repo to pull from (default: super-excavate/super-excavate).
+--   --repo owner/name   Override the GitHub repo to pull from (default: Laraakaa/super-excavate).
 --   --branch name       Override the branch/tag (default: main).
---   --startup           Install startup.lua that auto-resumes on boot.
+--   --startup           Install startup.lua for the chosen role.
+--   --role turtle|receiver   Force a role (default: detect turtle API -> turtle, else receiver).
 
 local defaultManifest = {
   repo = "Laraakaa/super-excavate",
@@ -118,9 +119,23 @@ local function persistManifest(manifest)
   writeFile("ota_manifest.lua", table.concat(lines, "\n") .. "\n")
 end
 
-local function installStartup()
-  local content = [[
--- Auto-start hook for super-excavate installed via setup.lua.
+local function installStartup(role)
+  local content
+  if role == "receiver" then
+    content = [[
+-- Auto-start hook for super-excavate receiver installed via setup.lua.
+if fs and fs.exists and fs.exists("receiver.lua") then
+  if shell and shell.run then
+    shell.run("receiver")
+  elseif os and os.run then
+    os.run(_ENV, "receiver")
+  end
+end
+]]
+    print("[info] Installed startup.lua to auto-start receiver on boot.")
+  else
+    content = [[
+-- Auto-start hook for super-excavate turtle installed via setup.lua.
 if fs and fs.exists and fs.exists("sexcavate.lua") then
   if shell and shell.run then
     shell.run("sexcavate", "auto")
@@ -129,8 +144,9 @@ if fs and fs.exists and fs.exists("sexcavate.lua") then
   end
 end
 ]]
+    print("[info] Installed startup.lua to auto-resume turtle on boot.")
+  end
   writeFile("startup.lua", content)
-  print("[info] Installed startup.lua to auto-resume on boot.")
 end
 
 local function uniqueFiles(list)
@@ -179,6 +195,11 @@ local function buildManifest(opts)
   return manifest
 end
 
+local function detectRole()
+  if turtle then return "turtle" end
+  return "receiver"
+end
+
 local function removeStaleFiles(previous, manifest)
   if not previous or not previous.files then return end
   if not fs or not fs.delete or not fs.exists then return end
@@ -198,9 +219,11 @@ local function runSetup(opts)
   assertHttp()
   local previousManifest = loadLocalManifest()
   local manifest = buildManifest(opts)
+  local role = opts.role or detectRole()
 
   persistManifest(manifest)
   print(string.format("[info] Using repo %s on branch %s", manifest.repo, manifest.branch))
+  print(string.format("[info] Detected role: %s", role))
 
   local summary = {}
   for _, file in ipairs(manifest.files) do
@@ -218,7 +241,7 @@ local function runSetup(opts)
   end
 
   if opts.startup then
-    installStartup()
+    installStartup(role)
   end
 end
 
@@ -227,6 +250,7 @@ local function parseArgs(argList)
     repo = nil,
     branch = nil,
     startup = false,
+    role = nil,
   }
   local i = 1
   while i <= #argList do
@@ -239,6 +263,13 @@ local function parseArgs(argList)
       i = i + 1
     elseif arg == "--startup" then
       opts.startup = true
+    elseif arg == "--role" and argList[i + 1] then
+      local role = argList[i + 1]
+      if role ~= "turtle" and role ~= "receiver" then
+        error("Invalid role: " .. tostring(role) .. " (expected turtle|receiver)")
+      end
+      opts.role = role
+      i = i + 1
     else
       error("Unknown argument: " .. tostring(arg))
     end
@@ -251,7 +282,7 @@ local function main()
   local ok, opts = pcall(parseArgs, { ... })
   if not ok then
     print(opts)
-    print("Usage: setup [--repo owner/name] [--branch main] [--startup]")
+    print("Usage: setup [--repo owner/name] [--branch main] [--startup] [--role turtle|receiver]")
     return
   end
 
