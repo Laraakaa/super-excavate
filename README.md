@@ -69,3 +69,7 @@ Make the files executable by running them directly (`excavate ...`, `receiver`).
 - Keep quarry dimensions reasonable to avoid chunk borders if you do not use chunk loaders.
 - For very large digs, consider placing extra chests above the start point so unloading never backs up.
 - If you lose wireless coverage, excavation continues; status just won't reach the dashboard until signal resumes.
+
+## Testing outside Minecraft
+- The excavation logic lives in `excavate_core.lua`, which can run against a simulated environment.
+- Run `lua5.4 tests/run.lua` to execute the lightweight unit tests that mock the turtle, modem, and rednet APIs.
