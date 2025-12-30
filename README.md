@@ -3,12 +3,28 @@
 Wireless-enabled ComputerCraft quarry helper for All The Mods 10 / Minecraft 1.21 turtles.
 
 ## What's included
-- `sexcavate.lua`: Primary launcher that supports OTA updates, auto-start, and resume from saves.
+- `setup.lua`: One-shot installer/OTA bootstrap that downloads the latest files (and can install the startup hook).
+- `sexcavate.lua`: Primary launcher that supports auto-start and resume from saves.
 - `excavate_core.lua`: Turtle quarry core that:
   - Mines a rectangular prism (length × width × optional depth).
   - Auto-unloads into a chest placed directly above the starting position.
   - Broadcasts wireless status (progress/fuel/errors) over `rednet` with the `super_excavate` protocol.
 - `receiver.lua`: Dashboard that listens for broadcasts and prints a live table of turtles. On gold/advanced monitors it switches to a drawing-based, 2×2-optimized view.
+
+## Install / update with `setup`
+Download the installer directly from GitHub raw and run it on the turtle/computer:
+```
+wget https://raw.githubusercontent.com/Laraakaa/super-excavate/main/setup.lua setup
+setup --startup
+```
+
+- By default, it pulls from `Laraakaa/super-excavate` on `main`.
+- Use `--repo owner/name` and `--branch branch-name` to point OTA at your fork; `setup` will fetch that repo’s `ota_manifest.lua` first so it automatically follows file additions/removals (including updating itself).
+- Rerun `setup` any time to update to the latest files; it overwrites the tracked scripts, refreshes `ota_manifest.lua`, and removes stale tracked files.
+- `--startup` installs `startup.lua` for the detected/forced role:
+  - **Turtle (default when the `turtle` API exists):** `startup.lua` runs `sexcavate auto` to resume digs.
+  - **Receiver (default on a regular ComputerCraft PC):** `startup.lua` runs `receiver` on boot.
+- Force a role with `--role turtle` or `--role receiver`.
 
 ## Turtle setup (`sexcavate`)
 1. Place a **chest directly above** the turtle start block (e.g., turtle on the floor, chest one block higher).
@@ -44,44 +60,51 @@ sexcavate 10 6 3
   ```
   sexcavate resume
   ```
-- To auto-resume on boot (and optionally auto-update), install the startup hook:
-  ```
-  sexcavate install-startup
-  ```
-  On reboot the turtle will call `sexcavate auto`, download updates (if HTTP is enabled), and continue the saved job if one exists.
+- To auto-resume on boot, run `setup --startup` once. On reboot the turtle will call `sexcavate auto` and continue the saved job if one exists.
 
 ### Over-the-air updates
-- OTA pulls files directly from the public GitHub repo listed in `ota_manifest.lua` (update `repo`/`branch` there if you fork).
-- With HTTP enabled in ComputerCraft:
+- OTA pulls files directly from the public GitHub repo listed in `ota_manifest.lua` (default `Laraakaa/super-excavate` on `main`).
+- With HTTP enabled in ComputerCraft, rerun the installer to refresh everything:
   ```
-  sexcavate update               # uses repo from ota_manifest.lua
-  sexcavate update --repo you/super-excavate --branch main
+  setup                         # updates from the default repo/branch
+  setup --repo you/super-excavate --branch main
   ```
-- The updater refreshes core files: `sexcavate.lua`, `excavate.lua`, `excavate_core.lua`, `receiver.lua`, `gold_dashboard.lua`, `ota.lua`, `ota_manifest.lua`, `startup.lua`, and `state_store.lua`.
+- The installer/updater refreshes core files: `setup.lua`, `sexcavate.lua`, `excavate.lua`, `excavate_core.lua`, `receiver.lua`, `gold_dashboard.lua`, `ota.lua`, `ota_manifest.lua`, `startup.lua`, `state_store.lua`, and `version.lua`.
 - How it works:
   - `ota_manifest.lua` declares the GitHub `repo`, optional `branch`, and the list of files to pull.
-  - `sexcavate update` builds `https://raw.githubusercontent.com/<repo>/<branch>/<file>` URLs, downloads each with the ComputerCraft `http` API, and overwrites the local copies.
+  - `setup` builds `https://raw.githubusercontent.com/<repo>/<branch>/<file>` URLs, downloads each with the ComputerCraft `http` API, and overwrites the local copies.
   - If you pass `--repo`/`--branch`, the manifest is rewritten locally so future updates continue to use that source.
-  - The command exits quietly if HTTP is disabled in your server/client config; enable `http` in ComputerCraft to use OTA.
+  - The command exits with an error if HTTP is disabled in your server/client config; enable `http` in ComputerCraft to use OTA.
 
 ## Dashboard setup (`receiver.lua`)
 1. Place a ComputerCraft computer with a **wireless modem** on any side; activate the modem.
-2. Copy `receiver.lua` onto the computer and run:
+2. Install/update with the setup script (non-turtle PCs auto-detect as receivers):
+```
+wget https://raw.githubusercontent.com/Laraakaa/super-excavate/main/setup.lua setup
+setup --role receiver --startup
+```
+3. Or copy `receiver.lua` manually and run:
 ```
 receiver
 ```
-3. The screen lists each broadcasting turtle with:
+4. The screen lists each broadcasting turtle with:
    - Computer ID & label
    - Current state
    - Progress %
    - Fuel remaining
    - Age of last update (seconds)
-4. Optional: Place the computer next to an **advanced/gold monitor**, assemble it as a 2×2 (or larger), and run `receiver` on the computer. The dashboard will switch to a colorful drawing-mode UI tuned for a 2×2 gold monitor layout while still working on the computer’s own screen or basic monitors.
+   - Version + git commit (short)
+5. Optional: Place the computer next to an **advanced/gold monitor**, assemble it as a 2×2 (or larger), and run `receiver` on the computer. The dashboard will switch to a colorful drawing-mode UI tuned for a 2×2 gold monitor layout while still working on the computer’s own screen or basic monitors.
 
 You can run multiple dashboards; they all listen on the `super_excavate` protocol.
 
 ## Copying the scripts into Minecraft
-Option A (pastebin/URL): Upload these files somewhere accessible (e.g., `pastebin put`). On the turtle/computer:
+Option A (recommended): use the installer directly from GitHub:
+```
+wget https://raw.githubusercontent.com/Laraakaa/super-excavate/main/setup.lua setup
+setup --startup
+```
+Option B (manual copy): Upload individual files somewhere accessible (e.g., `pastebin put`). On the turtle/computer:
 ```
 wget <url-to-sexcavate.lua> sexcavate
 wget <url-to-receiver.lua> receiver

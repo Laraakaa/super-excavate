@@ -49,6 +49,28 @@ local function clampText(text, len)
   return text .. string.rep(" ", len - #text)
 end
 
+local function shortCommit(commit)
+  if not commit then return nil end
+  local c = tostring(commit)
+  if #c <= 7 then return c end
+  return c:sub(1, 7)
+end
+
+local function formatDetail(entry)
+  local parts = {}
+  if entry.detail and entry.detail ~= "" then
+    table.insert(parts, entry.detail)
+  end
+  if entry.version or entry.git_commit then
+    local commitLabel = shortCommit(entry.git_commit) or "unknown"
+    table.insert(parts, string.format("v%s @ %s", entry.version or "?", commitLabel))
+  end
+  if #parts == 0 then
+    return "Waiting for updates…"
+  end
+  return table.concat(parts, " | ")
+end
+
 local function formatProgress(entry)
   if not entry.total or entry.total == 0 then return "?" end
   local pct = math.floor((entry.cleared or 0) / entry.total * 1000) / 10
@@ -184,7 +206,7 @@ local function drawRows(entries, startRow)
       }
 
       if detailWidth > 0 then
-        table.insert(columns, clampText(entry.detail or "", detailWidth))
+        table.insert(columns, clampText(formatDetail(entry), detailWidth))
       end
 
       local row = table.concat(columns, " ")
@@ -221,18 +243,25 @@ end
 
 local function drawGold(entries)
   if not drawingSurface then return draw() end
+  local decorated = {}
   local active, completed = 0, 0
   for _, entry in ipairs(entries) do
-    if entry.state == "done" then
+    local clone = {}
+    for k, v in pairs(entry) do
+      clone[k] = v
+    end
+    clone.detail = formatDetail(entry)
+    table.insert(decorated, clone)
+    if clone.state == "done" then
       completed = completed + 1
     else
       active = active + 1
     end
   end
 
-  goldDashboard.render(drawingSurface, entries, {
+  goldDashboard.render(drawingSurface, decorated, {
     summary = {
-      total = #entries,
+      total = #decorated,
       active = active,
       completed = completed,
     },

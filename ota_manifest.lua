@@ -1,7 +1,8 @@
 return {
-  repo = "super-excavate/super-excavate",
+  repo = "Laraakaa/super-excavate",
   branch = "main",
   files = {
+    "version.lua",
     "sexcavate.lua",
     "excavate.lua",
     "excavate_core.lua",
@@ -11,5 +12,6 @@ return {
     "ota_manifest.lua",
     "state_store.lua",
     "startup.lua",
+    "setup.lua",
   },
 }
