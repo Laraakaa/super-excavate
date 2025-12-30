@@ -3,6 +3,17 @@
 -- required by tests or a simulator without immediately executing.
 
 local stateStore = dofile("state_store.lua")
+local meta = { version = "dev", git_commit = "unknown" }
+
+local function loadMeta()
+  local ok, data = pcall(dofile, "version.lua")
+  if ok and type(data) == "table" then
+    meta.version = data.version or meta.version
+    meta.git_commit = data.git_commit or meta.git_commit
+  end
+end
+
+loadMeta()
 
 local function defaultPrint(...)
   return print(...)
@@ -177,6 +188,8 @@ local function run(env, args, opts)
     return {
       id = env.os.getComputerID and env.os.getComputerID(),
       label = env.os.getComputerLabel and env.os.getComputerLabel(),
+      version = meta.version,
+      git_commit = meta.git_commit,
       state = label,
       detail = detail,
       progress = clearedBlocks / totalBlocks,
