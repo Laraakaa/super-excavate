@@ -58,6 +58,11 @@ sexcavate 10 6 3
   sexcavate update --repo you/super-excavate --branch main
   ```
 - The updater refreshes core files: `sexcavate.lua`, `excavate.lua`, `excavate_core.lua`, `receiver.lua`, `gold_dashboard.lua`, `ota.lua`, `ota_manifest.lua`, `startup.lua`, and `state_store.lua`.
+- How it works:
+  - `ota_manifest.lua` declares the GitHub `repo`, optional `branch`, and the list of files to pull.
+  - `sexcavate update` builds `https://raw.githubusercontent.com/<repo>/<branch>/<file>` URLs, downloads each with the ComputerCraft `http` API, and overwrites the local copies.
+  - If you pass `--repo`/`--branch`, the manifest is rewritten locally so future updates continue to use that source.
+  - The command exits quietly if HTTP is disabled in your server/client config; enable `http` in ComputerCraft to use OTA.
 
 ## Dashboard setup (`receiver.lua`)
 1. Place a ComputerCraft computer with a **wireless modem** on any side; activate the modem.
