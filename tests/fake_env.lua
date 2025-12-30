@@ -104,10 +104,10 @@ local function makeRednet()
   local broadcasts = {}
   return {
     broadcasts = broadcasts,
-    open = function(_, side)
+    open = function(side)
       broadcasts.openedSide = side
     end,
-    broadcast = function(_, payload, protocol)
+    broadcast = function(payload, protocol)
       table.insert(broadcasts, { payload = payload, protocol = protocol })
     end,
   }
