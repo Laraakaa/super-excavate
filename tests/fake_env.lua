@@ -226,6 +226,7 @@ function FakeEnv.makeMonitorAndPaintutils(width, height, ops)
     end,
     write = function(text)
       table.insert(ops, { op = "write", x = cursor.x, y = cursor.y, text = text, bg = bg, fg = fg })
+      table.insert(ops, { op = "text", x = cursor.x, y = cursor.y, text = text, bg = bg, fg = fg })
     end,
   }
 
